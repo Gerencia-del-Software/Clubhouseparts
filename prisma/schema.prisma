@@ -1,0 +1,383 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLEADO
+  CLIENTE
+}
+
+enum WorkOrderStatus {
+  RECIBIDO
+  EN_DIAGNOSTICO
+  PENDIENTE_APROBACION
+  EN_REPARACION
+  LISTO_PARA_ENTREGA
+  ENTREGADO
+}
+
+enum SpecialOrderStatus {
+  PENDIENTE
+  COTIZADO
+  ORDENADO
+  RECIBIDO
+  LISTO_PARA_RECOGER
+  ENTREGADO
+  CANCELADO
+}
+
+enum OrderType {
+  STOCK_ORDER
+  CUSTOMER_SPECIAL_ORDER
+  ADDITIONAL_REQUESTED_PART
+}
+
+enum InvoiceStatus {
+  PENDIENTE
+  PAGADA
+  ANULADA
+}
+
+enum PaymentMethod {
+  EFECTIVO
+  TARJETA
+  TRANSFERENCIA
+  MIXTO
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  role          Role      @default(CLIENTE)
+  phone         String?
+  address       String?
+  city          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  branchId      String?
+  branch        Branch?   @relation(fields: [branchId], references: [id])
+  
+  // Relations when user is a customer
+  customerProfile Customer?
+  
+  // Relations when user is employee
+  workOrders    WorkOrder[] @relation("Technician")
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  name        String
+  city        String
+  address     String
+  phone       String?
+  email       String?
+  hours       String?
+  description String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users         User[]
+  inventories   Inventory[]
+  sales         Sale[]
+  workOrders    WorkOrder[]
+  specialOrders SpecialOrder[]
+  invoices      Invoice[]
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  userId        String?  @unique
+  user          User?    @relation(fields: [userId], references: [id])
+  firstName     String
+  lastName      String
+  phone         String?
+  email         String?
+  address       String?
+  city          String?
+  loyaltyLevel  String   @default("BRONZE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  preferredBranchId String?
+  vehicles          Vehicle[]
+  sales             Sale[]
+  workOrders        WorkOrder[]
+  specialOrders     SpecialOrder[]
+  invoices          Invoice[]
+  loyaltyPoints     LoyaltyPoint[]
+  reminders         Reminder[]
+}
+
+model Vehicle {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  brand      String
+  model      String
+  year       Int
+  plate      String   @unique
+  vin        String?
+  mileage    Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  workOrders WorkOrder[]
+}
+
+model Supplier {
+  id            String   @id @default(cuid())
+  companyName   String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  city          String?
+  taxId         String?
+  notes         String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  products      Product[]
+  specialOrders SpecialOrder[]
+}
+
+model Product {
+  id                 String   @id @default(cuid())
+  name               String
+  sku                String   @unique
+  category           String
+  description        String?
+  brand              String?
+  compatibleVehicles String?
+  purchasePrice      Float
+  salePrice          Float
+  minStock           Int      @default(5)
+  imageUrl           String?
+  isActive           Boolean  @default(true)
+  isPublic           Boolean  @default(true)
+  supplierId         String?
+  supplier           Supplier? @relation(fields: [supplierId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  inventories        Inventory[]
+  saleItems          SaleItem[]
+  workOrderParts     WorkOrderPart[]
+  specialOrderItems  SpecialOrderItem[]
+}
+
+model Inventory {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  stock     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movements StockMovement[]
+
+  @@unique([productId, branchId])
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  inventoryId String
+  inventory   Inventory @relation(fields: [inventoryId], references: [id])
+  quantity    Int
+  type        String // "IN", "OUT", "ADJUSTMENT"
+  reason      String?
+  createdAt   DateTime @default(now())
+}
+
+model Sale {
+  id            String   @id @default(cuid())
+  saleNumber    String   @unique
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  branchId      String
+  branch        Branch   @relation(fields: [branchId], references: [id])
+  subtotal      Float
+  discount      Float    @default(0)
+  tax           Float
+  total         Float
+  paymentMethod PaymentMethod
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items    SaleItem[]
+  invoices Invoice[]
+}
+
+model SaleItem {
+  id        String   @id @default(cuid())
+  saleId    String
+  sale      Sale     @relation(fields: [saleId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+  total     Float
+  createdAt DateTime @default(now())
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  description String?
+  estDuration Int // in minutes
+  laborCost   Float
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workOrderServices WorkOrderService[]
+}
+
+model WorkOrder {
+  id             String          @id @default(cuid())
+  orderNumber    String          @unique
+  customerId     String
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  vehicleId      String
+  vehicle        Vehicle         @relation(fields: [vehicleId], references: [id])
+  technicianId   String?
+  technician     User?           @relation("Technician", fields: [technicianId], references: [id])
+  branchId       String
+  branch         Branch          @relation(fields: [branchId], references: [id])
+  status         WorkOrderStatus @default(RECIBIDO)
+  issueDesc      String
+  diagnosisNotes String?
+  techNotes      String?
+  estCompletion  DateTime?
+  totalEstimate  Float           @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  services WorkOrderService[]
+  parts    WorkOrderPart[]
+  invoices Invoice[]
+}
+
+model WorkOrderService {
+  id          String    @id @default(cuid())
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  serviceId   String
+  service     Service   @relation(fields: [serviceId], references: [id])
+  price       Float
+  createdAt   DateTime  @default(now())
+}
+
+model WorkOrderPart {
+  id          String    @id @default(cuid())
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  quantity    Int
+  price       Float
+  createdAt   DateTime  @default(now())
+}
+
+model SpecialOrder {
+  id            String             @id @default(cuid())
+  orderNumber   String             @unique
+  customerId    String?
+  customer      Customer?          @relation(fields: [customerId], references: [id])
+  supplierId    String?
+  supplier      Supplier?          @relation(fields: [supplierId], references: [id])
+  branchId      String
+  branch        Branch             @relation(fields: [branchId], references: [id])
+  orderType     OrderType
+  status        SpecialOrderStatus @default(PENDIENTE)
+  total         Float              @default(0)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  items SpecialOrderItem[]
+}
+
+model SpecialOrderItem {
+  id             String       @id @default(cuid())
+  specialOrderId String
+  specialOrder   SpecialOrder @relation(fields: [specialOrderId], references: [id])
+  productId      String?
+  product        Product?     @relation(fields: [productId], references: [id])
+  customPartName String?
+  quantity       Int
+  price          Float
+  total          Float
+  createdAt      DateTime     @default(now())
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  saleId        String?
+  sale          Sale?         @relation(fields: [saleId], references: [id])
+  workOrderId   String?
+  workOrder     WorkOrder?    @relation(fields: [workOrderId], references: [id])
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  branchId      String
+  branch        Branch        @relation(fields: [branchId], references: [id])
+  subtotal      Float
+  discount      Float         @default(0)
+  tax           Float
+  total         Float
+  paymentMethod PaymentMethod
+  status        InvoiceStatus @default(PENDIENTE)
+  issueDate     DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  payments Payment[]
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id])
+  amount        Float
+  paymentMethod PaymentMethod
+  paymentDate   DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+}
+
+model LoyaltyPoint {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  points     Int
+  reason     String
+  type       String // "EARNED", "REDEEMED"
+  createdAt  DateTime @default(now())
+}
+
+model Reminder {
+  id           String   @id @default(cuid())
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id])
+  title        String
+  description  String?
+  dueDate      DateTime
+  isCompleted  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
