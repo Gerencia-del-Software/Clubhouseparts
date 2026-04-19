@@ -20,7 +20,7 @@ export function Topbar() {
                 {/* Branch Selector */}
                 <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-md border border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors">
                     <MapPin className="h-4 w-4 text-slate-500" />
-                    <span className="text-sm font-medium text-slate-700">Sede Medellín</span>
+                    <span className="text-sm font-medium text-slate-700">Todas las Sedes</span>
                     <ChevronDown className="h-4 w-4 text-slate-400" />
                 </div>
 
