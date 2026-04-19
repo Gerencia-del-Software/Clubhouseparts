@@ -1,13 +1,48 @@
 import { Button } from "@/components/ui/button"
 import { Search, Plus, Printer, TrendingUp, CreditCard } from "lucide-react"
+import { prisma } from "@/lib/prisma"
 
-export default function SalesPage() {
-    const sales = [
-        { id: "VEN-8201", customer: "Juan Pérez", date: "15 Oct 2023, 14:30", branch: "Amalfi", total: "$450.000", method: "Tarjeta", status: "Pagada" },
-        { id: "VEN-8202", customer: "Empresa S.A.", date: "15 Oct 2023, 15:45", branch: "Medellín", total: "$1.250.000", method: "Transferencia", status: "Pendiente" },
-        { id: "VEN-8203", customer: "María Gómez", date: "16 Oct 2023, 09:15", branch: "Bogotá", total: "$85.000", method: "Efectivo", status: "Pagada" },
-        { id: "VEN-8204", customer: "Carlos Ruiz", date: "16 Oct 2023, 10:20", branch: "Amalfi", total: "$620.000", method: "Mixto", status: "Pagada" },
-    ]
+export const dynamic = 'force-dynamic';
+
+export default async function SalesPage() {
+    // Fetch real sales from DB
+    const dbSales = await prisma.sale.findMany({
+        include: {
+            customer: true,
+            branch: true,
+            items: {
+                include: { product: true }
+            }
+        },
+        orderBy: { createdAt: 'desc' }
+    });
+
+    const sales = dbSales.length > 0 ? dbSales.map(s => ({
+        id: s.saleNumber,
+        customer: s.customer ? `${s.customer.firstName} ${s.customer.lastName}` : "Cliente Mostrador",
+        date: new Date(s.createdAt).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        branch: s.branch.name.replace("Sede ", ""),
+        total: new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(s.total),
+        method: s.paymentMethod,
+        status: "Pagada" // Assuming all registered sales are paid for now
+    })) : [
+        { id: "VEN-8201", customer: "Sin ventas", date: "-", branch: "-", total: "$0", method: "-", status: "-" },
+    ];
+
+    // Stats for sidebar (Medellin as example)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const medellinSales = await prisma.sale.findMany({
+        where: {
+            branch: { name: { contains: 'Medellín' } },
+            createdAt: { gte: today }
+        }
+    });
+    
+    const totalToday = medellinSales.reduce((acc, s) => acc + s.total, 0);
+    const cashTotal = medellinSales.filter(s => s.paymentMethod === 'EFECTIVO').reduce((acc, s) => acc + s.total, 0);
+    const cardTotal = medellinSales.filter(s => s.paymentMethod === 'TARJETA').reduce((acc, s) => acc + s.total, 0);
+    const transTotal = medellinSales.filter(s => s.paymentMethod === 'TRANSFERENCIA').reduce((acc, s) => acc + s.total, 0);
 
     return (
         <div className="flex flex-col h-full space-y-6">
@@ -15,7 +50,7 @@ export default function SalesPage() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Punto de Venta e Historial</h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Control de caja y ventas de repuestos en mostrador.
+                        Control de caja y ventas de repuestos en mostrador (Datos Reales MySQL).
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -77,8 +112,8 @@ export default function SalesPage() {
                                             </td>
                                             <td className="px-6 py-4 text-slate-600">{s.branch}</td>
                                             <td className="px-6 py-4">
-                                                <span className="flex items-center text-slate-700 text-xs font-medium bg-slate-100 px-2 py-1 rounded w-fit">
-                                                    <CreditCard className="w-3 h-3 mr-1" /> {s.method}
+                                                <span className="flex items-center text-slate-700 text-xs font-medium bg-slate-100 px-2 py-1 rounded w-fit capitalize">
+                                                    <CreditCard className="w-3 h-3 mr-1" /> {s.method.toLowerCase()}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
@@ -100,7 +135,7 @@ export default function SalesPage() {
                         </div>
                         {/* Pagination mock */}
                         <div className="border-t border-slate-200 bg-slate-50 px-6 py-3 flex items-center justify-between text-sm text-slate-500 mt-auto">
-                            <span>Mostrando 4 de 1.205 ventas</span>
+                            <span>Mostrando {sales.length} ventas</span>
                             <div className="flex gap-1">
                                 <button className="px-3 py-1 border border-slate-200 rounded-md bg-white hover:bg-slate-100 disabled:opacity-50">Anterior</button>
                                 <button className="px-3 py-1 border border-slate-200 rounded-md bg-white hover:bg-slate-100">Siguiente</button>
@@ -114,20 +149,20 @@ export default function SalesPage() {
                     <div className="bg-slate-900 text-white rounded-xl shadow-sm border border-slate-800 p-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full -mr-10 -mt-10 blur-2xl"></div>
                         <h3 className="font-semibold text-slate-300 mb-1">Ventas Hoy (Medellín)</h3>
-                        <div className="text-3xl font-bold mb-4">$3.245.000</div>
+                        <div className="text-3xl font-bold mb-4">{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(totalToday)}</div>
 
                         <div className="space-y-3 pt-4 border-t border-slate-800/50">
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-400">Efectivo</span>
-                                <span className="font-medium">$850.000</span>
+                                <span className="font-medium">{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(cashTotal)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-400">Tarjetas</span>
-                                <span className="font-medium">$1.345.000</span>
+                                <span className="font-medium">{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(cardTotal)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-400">Transferencias</span>
-                                <span className="font-medium">$1.050.000</span>
+                                <span className="font-medium">{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(transTotal)}</span>
                             </div>
                         </div>
                     </div>

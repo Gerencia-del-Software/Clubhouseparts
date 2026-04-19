@@ -1,69 +1,54 @@
 import { Button } from "@/components/ui/button"
 import { Search, Plus, Wrench, ShieldAlert, CheckCircle2, Clock, Calendar } from "lucide-react"
+import { prisma } from "@/lib/prisma"
 
-export default function WorkOrdersPage() {
-    const orders = [
-        {
-            id: "OT-9901",
-            customer: "Fernando Vallejo",
-            vehicle: "Nissan Frontier (2020) - JKL-456",
-            date: "Hoy, 08:30",
-            technician: "Mario Rojas",
-            status: "En reparación",
-            statusIcon: Wrench,
-            statusColor: "text-blue-600 bg-blue-50 border-blue-200",
-            progress: 65,
-            branch: "Medellín"
+export const dynamic = 'force-dynamic';
+
+export default async function WorkOrdersPage() {
+    // Fetch real work orders from DB
+    const dbOrders = await prisma.workOrder.findMany({
+        include: {
+            customer: true,
+            vehicle: true,
+            technician: true,
+            branch: true
         },
-        {
-            id: "OT-9902",
-            customer: "Diana Martínez",
-            vehicle: "Ford Fiesta (2015) - MNP-789",
-            date: "Hoy, 10:15",
-            technician: "Sin asignar",
-            status: "Recibido",
-            statusIcon: Clock,
-            statusColor: "text-slate-600 bg-slate-50 border-slate-200",
-            progress: 5,
-            branch: "Amalfi"
-        },
-        {
-            id: "OT-9903",
-            customer: "Luis Castaño",
-            vehicle: "Toyota Fortuner (2022) - XYZ-123",
-            date: "Ayer, 16:00",
-            technician: "Carlos Giraldo",
-            status: "Diagnóstico",
-            statusIcon: Search,
-            statusColor: "text-purple-600 bg-purple-50 border-purple-200",
-            progress: 25,
-            branch: "Medellín"
-        },
-        {
-            id: "OT-9890",
-            customer: "Empresa Logistics S.A.",
-            vehicle: "Chevrolet NQR (2018) - TBK-001",
-            date: "Lun 12 Oct",
-            technician: "Mario Rojas",
-            status: "Pendiente Aprobación",
-            statusIcon: ShieldAlert,
-            statusColor: "text-orange-600 bg-orange-50 border-orange-200",
-            progress: 35,
-            branch: "Bogotá"
-        },
-        {
-            id: "OT-9885",
-            customer: "Ana Puerta",
-            vehicle: "Renault Logan (2019) - RRS-555",
-            date: "Lun 12 Oct",
-            technician: "Andrés Silva",
-            status: "Listo para entrega",
-            statusIcon: CheckCircle2,
-            statusColor: "text-green-600 bg-green-50 border-green-200",
-            progress: 100,
-            branch: "Amalfi"
-        },
-    ]
+        orderBy: { createdAt: 'desc' }
+    });
+
+    const statusConfig: any = {
+        'RECIBIDO': { icon: Clock, color: "text-slate-600 bg-slate-50 border-slate-200", label: "Recibido", progress: 5 },
+        'EN_DIAGNOSTICO': { icon: Search, color: "text-purple-600 bg-purple-50 border-purple-200", label: "Diagnóstico", progress: 25 },
+        'PENDIENTE_APROBACION': { icon: ShieldAlert, color: "text-orange-600 bg-orange-50 border-orange-200", label: "Pte. Aprobación", progress: 35 },
+        'EN_REPARACION': { icon: Wrench, color: "text-blue-600 bg-blue-50 border-blue-200", label: "En Reparación", progress: 65 },
+        'LISTO_PARA_ENTREGA': { icon: CheckCircle2, color: "text-green-600 bg-green-50 border-green-200", label: "Listo para Entrega", progress: 100 },
+        'ENTREGADO': { icon: CheckCircle2, color: "text-slate-500 bg-slate-100 border-slate-200", label: "Entregado", progress: 100 },
+    };
+
+    const orders = dbOrders.length > 0 ? dbOrders.map(o => {
+        const config = statusConfig[o.status] || statusConfig['RECIBIDO'];
+        return {
+            id: o.orderNumber,
+            customer: `${o.customer.firstName} ${o.customer.lastName}`,
+            vehicle: `${o.vehicle.brand} ${o.vehicle.model} (${o.vehicle.year}) - ${o.vehicle.plate}`,
+            date: new Date(o.createdAt).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }),
+            technician: o.technician ? o.technician.name : "Sin asignar",
+            status: config.label,
+            statusIcon: config.icon,
+            statusColor: config.color,
+            progress: config.progress,
+            branch: o.branch.name.replace("Sede ", "")
+        };
+    }) : [];
+
+    // Stats for the top row
+    const stats = [
+        { label: 'Recibidos', count: dbOrders.filter(o => o.status === 'RECIBIDO').length },
+        { label: 'Diagnóstico', count: dbOrders.filter(o => o.status === 'EN_DIAGNOSTICO').length },
+        { label: 'Aprobación', count: dbOrders.filter(o => o.status === 'PENDIENTE_APROBACION').length },
+        { label: 'Reparación', count: dbOrders.filter(o => o.status === 'EN_REPARACION').length },
+        { label: 'Listos', count: dbOrders.filter(o => o.status === 'LISTO_PARA_ENTREGA').length },
+    ];
 
     return (
         <div className="flex flex-col h-full space-y-6">
@@ -71,7 +56,7 @@ export default function WorkOrdersPage() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Órdenes de Trabajo (Taller)</h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Gestión y seguimiento del ciclo de vida de los servicios de mecánica.
+                        Gestión y seguimiento del ciclo de vida de los servicios de mecánica (Datos Reales MySQL).
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -86,10 +71,10 @@ export default function WorkOrdersPage() {
 
             {/* Stats row */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {['Recibidos (4)', 'Diagnóstico (6)', 'Aprobación (2)', 'Reparación (8)', 'Listos (3)'].map((stat, i) => (
+                {stats.map((stat, i) => (
                     <div key={i} className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm cursor-pointer hover:border-blue-300 transition-colors">
-                        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">{stat.split(' ')[0]}</span>
-                        <span className="text-xl font-bold text-slate-900 block mt-1">{stat.split(' ')[1].replace(/[()]/g, '')}</span>
+                        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">{stat.label}</span>
+                        <span className="text-xl font-bold text-slate-900 block mt-1">{stat.count}</span>
                     </div>
                 ))}
             </div>
@@ -161,6 +146,13 @@ export default function WorkOrdersPage() {
                                     </td>
                                 </tr>
                             ))}
+                            {orders.length === 0 && (
+                                <tr>
+                                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500 italic">
+                                        No hay órdenes de trabajo registradas.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>

@@ -1,26 +1,71 @@
 import { DollarSign, Package, Wrench, Users, ArrowUpRight, ArrowDownRight, FileText } from "lucide-react"
+import { prisma } from "@/lib/prisma"
 
-export default function DashboardPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function DashboardPage() {
+    // 1. Real Stats from MySQL
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const salesToday = await prisma.sale.aggregate({
+        where: { createdAt: { gte: today } },
+        _sum: { total: true }
+    });
+
+    const activeOrdersCount = await prisma.workOrder.count({
+        where: { status: { notIn: ['ENTREGADO'] } }
+    });
+
+    const totalCustomers = await prisma.customer.count();
+
+    const lowStockCount = await prisma.inventory.count({
+        where: { stock: { lt: 5 } } // Assume 5 is critical min stock for quick KPI
+    });
+
     const kpis = [
-        { title: "Ventas del Día", value: "$4.250.000", trend: "+12.5%", isPositive: true, icon: DollarSign, info: "Sede Medellín" },
-        { title: "Órdenes Activas", value: "18", trend: "-2", isPositive: false, icon: Wrench, info: "5 en reparación" },
-        { title: "Clientes Atendidos", value: "42", trend: "+5.2%", isPositive: true, icon: Users, info: "Este mes" },
-        { title: "Stock Bajo/Agotado", value: "14", trend: "Crítico", isPositive: false, icon: Package, info: "Requiere reposición", color: "text-red-600" }
+        { title: "Ventas del Día", value: new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(salesToday._sum.total || 0), trend: "+0%", isPositive: true, icon: DollarSign, info: "Hoy" },
+        { title: "Órdenes Activas", value: activeOrdersCount.toString(), trend: "En taller", isPositive: true, icon: Wrench, info: "Pendientes por entregar" },
+        { title: "Total Clientes", value: totalCustomers.toString(), trend: "Registrados", isPositive: true, icon: Users, info: "Directorio base" },
+        { title: "Stock Crítico", value: lowStockCount.toString(), trend: "Alerta", isPositive: false, icon: Package, info: "Menos de 5 unidades", color: "text-red-600" }
     ]
 
-    const recentOrders = [
-        { id: "OT-2023", client: "Roberto Sánchez", vehicle: "Mazda 3", status: "Listo para entrega", total: "$350.000" },
-        { id: "OT-2024", client: "Ana Restrepo", vehicle: "Toyota Prado", status: "En reparación", total: "$1.200.000" },
-        { id: "OT-2025", client: "Empresa Transportes", vehicle: "Chevrolet NHR", status: "Pendiente aprobación", total: "$850.000" },
-        { id: "OT-2026", client: "Camilo García", vehicle: "Kia Picanto", status: "En diagnóstico", total: "-" }
-    ]
+    // 2. Fetch Recent Work Orders
+    const dbRecentOrders = await prisma.workOrder.findMany({
+        take: 5,
+        include: { customer: true, vehicle: true },
+        orderBy: { createdAt: 'desc' }
+    });
+
+    const recentOrders = dbRecentOrders.map(o => ({
+        id: o.orderNumber,
+        client: `${o.customer.firstName} ${o.customer.lastName}`,
+        vehicle: `${o.vehicle.brand} ${o.vehicle.model}`,
+        status: o.status.replace(/_/g, ' '),
+        total: o.totalEstimate > 0 ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(o.totalEstimate) : "-"
+    }));
+
+    // 3. Low Stock Alerts (Detail)
+    const dbLowStock = await prisma.inventory.findMany({
+        where: { stock: { lt: 10 } },
+        include: { product: true },
+        take: 4,
+        orderBy: { stock: 'asc' }
+    });
+
+    const lowStockAlerts = dbLowStock.map(inv => ({
+        id: inv.product.sku,
+        name: inv.product.name,
+        stock: inv.stock,
+        min: inv.product.minStock
+    }));
 
     return (
         <div className="max-w-7xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard Administrativo</h1>
-                    <p className="text-slate-500 mt-1">Bienvenido de vuelta, estas son las métricas de hoy.</p>
+                    <p className="text-slate-500 mt-1">Gestión integral basada en datos reales de sucursales.</p>
                 </div>
             </div>
 
@@ -68,7 +113,7 @@ export default function DashboardPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {recentOrders.map((order, i) => (
+                                {recentOrders.length > 0 ? recentOrders.map((order, i) => (
                                     <tr key={i} className="hover:bg-slate-50 transition-colors">
                                         <td className="px-6 py-4 font-medium text-slate-900 flex items-center gap-2">
                                             <FileText className="h-4 w-4 text-slate-400" />
@@ -79,17 +124,18 @@ export default function DashboardPage() {
                                             <div className="text-slate-500 text-xs">{order.vehicle}</div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border
-                        ${order.status === 'Listo para entrega' ? 'bg-green-50 text-green-700 border-green-200' :
-                                                    order.status === 'En reparación' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                        order.status === 'En diagnóstico' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border capitalize
+                        ${order.status === 'LISTO PARA ENTREGA' ? 'bg-green-50 text-green-700 border-green-200' :
+                                                        order.status === 'EN REPARACION' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                                                             'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
-                                                {order.status}
+                                                {order.status.toLowerCase()}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right font-medium text-slate-900">{order.total}</td>
                                     </tr>
-                                ))}
+                                )) : (
+                                    <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500 italic">No hay órdenes recientes</td></tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -101,12 +147,8 @@ export default function DashboardPage() {
                         <h2 className="text-lg font-bold text-slate-800">Alertas de Inventario</h2>
                     </div>
                     <div className="p-6 space-y-4">
-                        {[
-                            { id: "BOS-Cer-001", name: "Filtro Aceite Hilux", stock: 2, min: 10 },
-                            { id: "LUK-CL-990", name: "Kit Embrague Spark", stock: 0, min: 5 },
-                            { id: "MAG-003", name: "Bujías Iridium (4x)", stock: 3, min: 20 },
-                        ].map((prod, i) => (
-                            <div key={i} className="flex items-center justify-between items-start border-b border-slate-50 pb-4 last:border-0 last:pb-0">
+                        {lowStockAlerts.length > 0 ? lowStockAlerts.map((prod, i) => (
+                            <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-4 last:border-0 last:pb-0">
                                 <div>
                                     <h4 className="font-semibold text-slate-800 text-sm mb-0.5">{prod.name}</h4>
                                     <p className="text-xs text-slate-500">Ref: {prod.id}</p>
@@ -118,9 +160,11 @@ export default function DashboardPage() {
                                     <div className="text-xs text-slate-400 font-medium mt-0.5">Min: {prod.min}</div>
                                 </div>
                             </div>
-                        ))}
+                        )) : (
+                            <div className="text-center text-green-600 text-sm font-medium py-4">Stock saludable en todas las sedes.</div>
+                        )}
                         <button className="w-full py-2 mt-4 text-sm font-semibold text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors">
-                            Emitir Pedido de Compra
+                            Ver Reporte de Stock
                         </button>
                     </div>
                 </div>
