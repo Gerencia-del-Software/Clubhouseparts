@@ -1,4 +1,4 @@
-import { DollarSign, Package, Wrench, Users, ArrowUpRight, ArrowDownRight, FileText } from "lucide-react"
+import { DollarSign, Package, Wrench, Users, FileText } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 
 export const dynamic = 'force-dynamic';
@@ -20,13 +20,13 @@ export default async function DashboardPage() {
     const totalCustomers = await prisma.customer.count();
 
     const lowStockCount = await prisma.inventory.count({
-        where: { stock: { lt: 5 } } // Assume 5 is critical min stock for quick KPI
+        where: { stock: { lt: 5 } }
     });
 
     const kpis = [
-        { title: "Ventas del Día", value: new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(salesToday._sum.total || 0), trend: "+0%", isPositive: true, icon: DollarSign, info: "Hoy" },
-        { title: "Órdenes Activas", value: activeOrdersCount.toString(), trend: "En taller", isPositive: true, icon: Wrench, info: "Pendientes por entregar" },
-        { title: "Total Clientes", value: totalCustomers.toString(), trend: "Registrados", isPositive: true, icon: Users, info: "Directorio base" },
+        { title: "Ventas del Día", value: new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(salesToday._sum.total || 0), trend: "Global", isPositive: true, icon: DollarSign, info: "Todas las sedes" },
+        { title: "Órdenes Activas", value: activeOrdersCount.toString(), trend: "Taller", isPositive: true, icon: Wrench, info: "Pendientes por entregar" },
+        { title: "Total Clientes", value: totalCustomers.toString(), trend: "Base Datos", isPositive: true, icon: Users, info: "Directorio nacional" },
         { title: "Stock Crítico", value: lowStockCount.toString(), trend: "Alerta", isPositive: false, icon: Package, info: "Menos de 5 unidades", color: "text-red-600" }
     ]
 
@@ -60,12 +60,29 @@ export default async function DashboardPage() {
         min: inv.product.minStock
     }));
 
+    // 4. Branch Summary
+    const branches = await prisma.branch.findMany({
+        include: {
+            _count: {
+                select: { workOrders: true, sales: true }
+            }
+        }
+    });
+
     return (
         <div className="max-w-7xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard Administrativo</h1>
-                    <p className="text-slate-500 mt-1">Gestión integral basada en datos reales de sucursales.</p>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="flex h-2 w-2 rounded-full bg-green-500"></span>
+                        <p className="text-slate-500 text-sm font-medium">Vista Global Consolidada: {branches.length} Sedes Activas</p>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                        Descargar Reporte Mensual
+                    </button>
                 </div>
             </div>
 
@@ -84,8 +101,7 @@ export default async function DashboardPage() {
                         </div>
 
                         <div className="mt-4 flex items-center text-sm">
-                            <span className={`flex items-center font-medium ${kpi.isPositive ? 'text-green-600' : 'text-rose-600'}`}>
-                                {kpi.isPositive ? <ArrowUpRight className="w-4 h-4 mr-1" /> : <ArrowDownRight className="w-4 h-4 mr-1" />}
+                            <span className={`flex items-center font-medium ${kpi.isPositive ? 'text-blue-600' : 'text-rose-600'}`}>
                                 {kpi.trend}
                             </span>
                             <span className="ml-2 text-slate-400">{kpi.info}</span>
@@ -97,52 +113,83 @@ export default async function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
                 {/* Recent Work Orders */}
-                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                        <h2 className="text-lg font-bold text-slate-800">Órdenes de Trabajo Recientes</h2>
-                        <button className="text-sm text-blue-600 font-medium hover:underline">Ver todas</button>
-                    </div>
-                    <div className="p-0 overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 uppercase text-xs">
-                                <tr>
-                                    <th className="px-6 py-3">Orden</th>
-                                    <th className="px-6 py-3">Cliente / Vehículo</th>
-                                    <th className="px-6 py-3">Estado</th>
-                                    <th className="px-6 py-3 text-right">Total Est.</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {recentOrders.length > 0 ? recentOrders.map((order, i) => (
-                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-slate-900 flex items-center gap-2">
-                                            <FileText className="h-4 w-4 text-slate-400" />
-                                            {order.id}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-slate-900 font-medium">{order.client}</div>
-                                            <div className="text-slate-500 text-xs">{order.vehicle}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border capitalize
-                        ${order.status === 'LISTO PARA ENTREGA' ? 'bg-green-50 text-green-700 border-green-200' :
-                                                        order.status === 'EN REPARACION' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                            'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
-                                                {order.status.toLowerCase()}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right font-medium text-slate-900">{order.total}</td>
+                <div className="lg:col-span-2 space-y-8">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                            <h2 className="text-lg font-bold text-slate-800">Órdenes de Trabajo Recientes</h2>
+                            <button className="text-sm text-blue-600 font-medium hover:underline">Ver todas</button>
+                        </div>
+                        <div className="p-0 overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 uppercase text-xs">
+                                    <tr>
+                                        <th className="px-6 py-3">Orden</th>
+                                        <th className="px-6 py-3">Cliente / Vehículo</th>
+                                        <th className="px-6 py-3">Estado</th>
+                                        <th className="px-6 py-3 text-right">Total Est.</th>
                                     </tr>
-                                )) : (
-                                    <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500 italic">No hay órdenes recientes</td></tr>
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {recentOrders.length > 0 ? recentOrders.map((order, i) => (
+                                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-slate-900 flex items-center gap-2">
+                                                <FileText className="h-4 w-4 text-slate-400" />
+                                                {order.id}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-slate-900 font-medium">{order.client}</div>
+                                                <div className="text-slate-500 text-xs">{order.vehicle}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium border capitalize
+                            ${order.status === 'LISTO PARA ENTREGA' ? 'bg-green-50 text-green-700 border-green-200' :
+                                                            order.status === 'EN REPARACION' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                                'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
+                                                    {order.status.toLowerCase()}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-medium text-slate-900">{order.total}</td>
+                                        </tr>
+                                    )) : (
+                                        <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500 italic">No hay órdenes en curso</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Branch Summary Table */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+                        <div className="p-6 border-b border-slate-100">
+                            <h2 className="text-lg font-bold text-slate-800">Estado por Sedes</h2>
+                        </div>
+                        <div className="p-0 overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 uppercase text-xs">
+                                    <tr>
+                                        <th className="px-6 py-3">Sede</th>
+                                        <th className="px-6 py-3 text-center">Ventas</th>
+                                        <th className="px-6 py-3 text-center">Órdenes</th>
+                                        <th className="px-6 py-3">Ciudad</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {branches.map((b, i) => (
+                                        <tr key={i} className="hover:bg-slate-50">
+                                            <td className="px-6 py-4 font-bold text-slate-900">{b.name}</td>
+                                            <td className="px-6 py-4 text-center">{b._count.sales}</td>
+                                            <td className="px-6 py-4 text-center">{b._count.workOrders}</td>
+                                            <td className="px-6 py-4 text-slate-500">{b.city}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
                 {/* Low Stock Alerts */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-fit">
                     <div className="p-6 border-b border-slate-100">
                         <h2 className="text-lg font-bold text-slate-800">Alertas de Inventario</h2>
                     </div>
@@ -161,10 +208,10 @@ export default async function DashboardPage() {
                                 </div>
                             </div>
                         )) : (
-                            <div className="text-center text-green-600 text-sm font-medium py-4">Stock saludable en todas las sedes.</div>
+                            <div className="text-center text-green-600 text-sm font-medium py-4">Stock saludable en el sistema.</div>
                         )}
                         <button className="w-full py-2 mt-4 text-sm font-semibold text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors">
-                            Ver Reporte de Stock
+                            Ver Reporte Completo
                         </button>
                     </div>
                 </div>
