@@ -29,20 +29,19 @@ export default async function SalesPage() {
         { id: "VEN-8201", customer: "Sin ventas", date: "-", branch: "-", total: "$0", method: "-", status: "-" },
     ];
 
-    // Stats for sidebar (Medellin as example)
+    // Stats for sidebar (Global - All Branches)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const medellinSales = await prisma.sale.findMany({
+    const todaySales = await prisma.sale.findMany({
         where: {
-            branch: { name: { contains: 'Medellín' } },
             createdAt: { gte: today }
         }
     });
-    
-    const totalToday = medellinSales.reduce((acc, s) => acc + s.total, 0);
-    const cashTotal = medellinSales.filter(s => s.paymentMethod === 'EFECTIVO').reduce((acc, s) => acc + s.total, 0);
-    const cardTotal = medellinSales.filter(s => s.paymentMethod === 'TARJETA').reduce((acc, s) => acc + s.total, 0);
-    const transTotal = medellinSales.filter(s => s.paymentMethod === 'TRANSFERENCIA').reduce((acc, s) => acc + s.total, 0);
+
+    const totalToday = todaySales.reduce((acc, s) => acc + s.total, 0);
+    const cashTotal = todaySales.filter(s => s.paymentMethod === 'EFECTIVO').reduce((acc, s) => acc + s.total, 0);
+    const cardTotal = todaySales.filter(s => s.paymentMethod === 'TARJETA').reduce((acc, s) => acc + s.total, 0);
+    const transTotal = todaySales.filter(s => s.paymentMethod === 'TRANSFERENCIA').reduce((acc, s) => acc + s.total, 0);
 
     return (
         <div className="flex flex-col h-full space-y-6">
@@ -50,7 +49,7 @@ export default async function SalesPage() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Punto de Venta e Historial</h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Control de caja y ventas de repuestos en mostrador (Datos Reales MySQL).
+                        Control de caja y ventas de repuestos centralizado (Todas las Sedes).
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -81,9 +80,10 @@ export default async function SalesPage() {
                         <div className="flex gap-2">
                             <input type="date" className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                             <select className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 hidden sm:block">
-                                <option>Estado: Todas</option>
-                                <option>Pagadas</option>
-                                <option>Pendientes</option>
+                                <option>Sede: Todas</option>
+                                <option>Amalfi</option>
+                                <option>Medellín</option>
+                                <option>Bogotá</option>
                             </select>
                         </div>
                     </div>
@@ -110,7 +110,7 @@ export default async function SalesPage() {
                                                 <div className="text-slate-900 font-medium">{s.customer}</div>
                                                 <div className="text-slate-500 text-xs">{s.date}</div>
                                             </td>
-                                            <td className="px-6 py-4 text-slate-600">{s.branch}</td>
+                                            <td className="px-6 py-4 text-slate-600 font-medium">{s.branch}</td>
                                             <td className="px-6 py-4">
                                                 <span className="flex items-center text-slate-700 text-xs font-medium bg-slate-100 px-2 py-1 rounded w-fit capitalize">
                                                     <CreditCard className="w-3 h-3 mr-1" /> {s.method.toLowerCase()}
@@ -148,7 +148,7 @@ export default async function SalesPage() {
                 <div className="space-y-6">
                     <div className="bg-slate-900 text-white rounded-xl shadow-sm border border-slate-800 p-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-                        <h3 className="font-semibold text-slate-300 mb-1">Ventas Hoy (Medellín)</h3>
+                        <h3 className="font-semibold text-slate-300 mb-1">Ventas Hoy (Empresa)</h3>
                         <div className="text-3xl font-bold mb-4">{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(totalToday)}</div>
 
                         <div className="space-y-3 pt-4 border-t border-slate-800/50">

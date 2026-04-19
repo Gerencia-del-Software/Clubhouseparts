@@ -9,14 +9,14 @@ import {
 export function Sidebar() {
     const routes = [
         { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-        { name: "Inventario", icon: Package, href: "/dashboard/inventory" },
-        { name: "Ventas", icon: ShoppingCart, href: "/dashboard/sales" },
-        { name: "Órdenes de Trabajo", icon: Wrench, href: "/dashboard/work-orders" },
-        { name: "Clientes", icon: Users, href: "/dashboard/customers" },
-        { name: "Facturación", icon: Receipt, href: "/dashboard/invoices" },
-        { name: "Reportes", icon: TrendingUp, href: "/dashboard/reports" },
-        { name: "Fidelización", icon: Heart, href: "/dashboard/loyalty" },
-        { name: "Configuración", icon: Settings, href: "/dashboard/settings" },
+        { name: "Inventario", icon: Package, href: "/inventory" },
+        { name: "Ventas", icon: ShoppingCart, href: "/sales" },
+        { name: "Órdenes de Trabajo", icon: Wrench, href: "/work-orders" },
+        { name: "Clientes", icon: Users, href: "/customers" },
+        { name: "Facturación", icon: Receipt, href: "/invoices" },
+        { name: "Reportes", icon: TrendingUp, href: "/reports" },
+        { name: "Fidelización", icon: Heart, href: "/loyalty" },
+        { name: "Configuración", icon: Settings, href: "/settings" },
     ]
 
     return (
