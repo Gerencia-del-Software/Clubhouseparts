@@ -11,11 +11,13 @@ export function Sidebar() {
         { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
         { name: "Inventario", icon: Package, href: "/dashboard/inventory" },
         { name: "Ventas", icon: ShoppingCart, href: "/dashboard/sales" },
+        { name: "Pedidos Especiales", icon: Truck, href: "/dashboard/special-orders" },
         { name: "Órdenes de Trabajo", icon: Wrench, href: "/dashboard/work-orders" },
-        { name: "Clientes", icon: Users, href: "/dashboard/customers" },
         { name: "Facturación", icon: Receipt, href: "/dashboard/invoices" },
+        { name: "Clientes", icon: Users, href: "/dashboard/customers" },
         { name: "Reportes", icon: TrendingUp, href: "/dashboard/reports" },
         { name: "Fidelización", icon: Heart, href: "/dashboard/loyalty" },
+        { name: "Asistente Virtual", icon: Bot, href: "/dashboard/ai-assistant" },
         { name: "Configuración", icon: Settings, href: "/dashboard/settings" },
     ]
 
